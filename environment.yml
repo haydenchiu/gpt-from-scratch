@@ -1,0 +1,17 @@
+name: gpt-env
+channels:
+  - pytorch-nightly
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scikit-learn
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cudatoolkit  # Optional, depending on if you use GPU on other platforms
+  - pip
+  - pip:
+      - transformers
