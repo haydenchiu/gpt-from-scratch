@@ -22,9 +22,9 @@ class SingleHeadedAttention(nn.Module):
 
     def forward(self, embedded):
         embedded = embedded.to(device)
-        q = self.query_layer(embedded).to(device) # B x T x A
-        k = self.key_layer(embedded).to(device) # B x T x A
-        v = self.value_layer(embedded).to(device) # B x T x A
+        q = self.query_layer(embedded)  # B x T x A
+        k = self.key_layer(embedded)  # B x T x A
+        v = self.value_layer(embedded)  # B x T x A
 
         # Scores: (B x T x A) @ (B x A x T) -> B x T x T
         scores = q @ torch.transpose(k, 1, 2)
@@ -44,6 +44,7 @@ class SingleHeadedAttention(nn.Module):
         attention_output = scores @ v
         return attention_output
     
+
 class MultiHeadedAttention(nn.Module):
     def __init__(self, model_dim, num_heads):
         super().__init__()
@@ -56,13 +57,14 @@ class MultiHeadedAttention(nn.Module):
         self.dropout = nn.Dropout(0.2)
         
     def forward(self, embedded):
-        embedded = embedded.to(device)
+        embedded = embedded
         head_outputs = []
         for head in self.attention_heads:
             head_outputs.append(head(embedded))
         concat = torch.cat(head_outputs, dim=-1)
         return self.dropout(self.compute(concat))
     
+
 class VanillaNeuralNetwork(nn.Module):
     def __init__(self, model_dim):
         super().__init__()
@@ -72,9 +74,9 @@ class VanillaNeuralNetwork(nn.Module):
         self.dropout = nn.Dropout(0.2)
         
     def forward(self, x):
-        x = x.to(device)
         return self.dropout(self.second_linear_layer(self.relu_layer(self.first_linear_layer(x))))
     
+
 class TransformerBlock(nn.Module):
     def __init__(self, model_dim, num_heads):
         super().__init__()
@@ -84,13 +86,13 @@ class TransformerBlock(nn.Module):
         self.feed_forward = VanillaNeuralNetwork(model_dim)
 
     def forward(self, embedded):
-        embedded = embedded.to(device)
         mha_output = self.mha(self.norm_layer_1(embedded))
         embedded = embedded + mha_output
         feed_forward_output = self.feed_forward(self.norm_layer_2(embedded))
         embedded = embedded + feed_forward_output
-        return embedded.to(device)
+        return embedded
     
+
 class GPT(nn.Module):
     def __init__(self, model_dim, num_heads, vocab_size, context_length, num_blocks):
         super().__init__()
@@ -103,8 +105,6 @@ class GPT(nn.Module):
         self.last_linear_layer = nn.Linear(model_dim, vocab_size)
 
     def forward(self, context):
-        context = context.to(device)
-        
         # Embedding
         embedded = self.word_emdedding(context)
         context_length = context.shape[1]
@@ -120,21 +120,25 @@ class GPT(nn.Module):
         
         return output
     
+    
+@torch.no_grad()
 def generate(model, new_chars: int, context, context_length: int, int_to_char: dict) -> str:
+    model.eval()  # Set to eval mode for generation
     res = []
     for i in range(new_chars):
         if context.shape[1] > context_length:
             context = context[:, -context_length:]
-        prediction = model(context).to(device) # B, T, Vocab_Size
-        print(f"Prediction shape: {prediction.shape}")
-        last_time_step = prediction[:, -1, :] # B, Vocab_Size
-        probabilities = F.softmax(last_time_step, dim = -1)
+        prediction = model(context).to(device)  # B, T, Vocab_Size
+        # print(f"Prediction shape: {prediction.shape}")
+        last_time_step = prediction[:, -1, :]  # B, Vocab_Size
+        probabilities = F.softmax(last_time_step, dim=-1)
         next_char = torch.multinomial(probabilities, 1)
-        context = torch.cat((context, next_char), dim = -1)
+        context = torch.cat((context, next_char), dim=-1)
         res.append(int_to_char[next_char.item()])
-        print(f"Generated character: {int_to_char[next_char.item()]}")  # Debug new character
+        # print(f"Generated character: {int_to_char[next_char.item()]}")  # Debug new character
     return ''.join(res)
     
+
 if __name__ == "__main__":
     vocab_size = 104
     context_length = 128
@@ -142,13 +146,12 @@ if __name__ == "__main__":
     num_blocks = 6
     num_heads = 6
 
-    #model_dim, num_heads, vocab_size, context_length, num_blocks
+    # model_dim, num_heads, vocab_size, context_length, num_blocks
     model = GPT(model_dim, num_heads, vocab_size, context_length, num_blocks).to(device)
 
-    model.eval()
-    new_chars = 5000
-    context = torch.zeros(1, 3, dtype = torch.int64).to(device)
+    new_chars = 500
+    context = torch.zeros(1, 3, dtype=torch.long, device=device)
 
-    int_to_char = {0: '\n', 1: ' ', 2: '!', 3: '"', 4: '$', 5: '%', 6: '&', 7: "'", 8: '(', 9: ')', 10: '*', 11: '+', 12: ',', 13: '-', 14: '.', 15: '/', 16: '0', 17: '1', 18: '2', 19: '3', 20: '4', 21: '5', 22: '6', 23: '7', 24: '8', 25: '9', 26: ':', 27: ';', 28: '?', 29: 'A', 30: 'B', 31: 'C', 32: 'D', 33: 'E', 34: 'F', 35: 'G', 36: 'H', 37: 'I', 38: 'J', 39: 'K', 40: 'L', 41: 'M', 42: 'N', 43: 'O', 44: 'P', 45: 'Q', 46: 'R', 47: 'S', 48: 'T', 49: 'U', 50: 'V', 51: 'W', 52: 'X', 53: 'Y', 54: 'Z', 55: '[', 56: ']', 57: '_', 58: 'a', 59: 'b', 60: 'c', 61: 'd', 62: 'e', 63: 'f', 64: 'g', 65: 'h', 66: 'i', 67: 'j', 68: 'k', 69: 'l', 70: 'm', 71: 'n', 72: 'o', 73: 'p', 74: 'q', 75: 'r', 76: 's', 77: 't', 78: 'u', 79: 'v', 80: 'w', 81: 'x', 82: 'y', 83: 'z', 84: '{', 85: '|', 86: '}', 87: 'à', 88: 'á', 89: 'è', 90: 'é', 91: 'ë', 92: 'ñ', 93: 'ó', 94: 'ú', 95: '\u2005', 96: '–', 97: '—', 98: '‘', 99: '’', 100: '“', 101: '”', 102: '…', 103: '\u205f'}
-
+    # int_to_char = {0: '\n', 1: ' ', 2: '!', 3: '"', 4: '$', 5: '%', 6: '&', 7: "'", 8: '(', 9: ')', 10: '*', 11: '+', 12: ',', 13: '-', 14: '.', 15: '/', 16: '0', 17: '1', 18: '2', 19: '3', 20: '4', 21: '5', 22: '6', 23: '7', 24: '8', 25: '9', 26: ':', 27: ';', 28: '?', 29: 'A', 30: 'B', 31: 'C', 32: 'D', 33: 'E', 34: 'F', 35: 'G', 36: 'H', 37: 'I', 38: 'J', 39: 'K', 40: 'L', 41: 'M', 42: 'N', 43: 'O', 44: 'P', 45: 'Q', 46: 'R', 47: 'S', 48: 'T', 49: 'U', 50: 'V', 51: 'W', 52: 'X', 53: 'Y', 54: 'Z', 55: '[', 56: ']', 57: '_', 58: 'a', 59: 'b', 60: 'c', 61: 'd', 62: 'e', 63: 'f', 64: 'g', 65: 'h', 66: 'i', 67: 'j', 68: 'k', 69: 'l', 70: 'm', 71: 'n', 72: 'o', 73: 'p', 74: 'q', 75: 'r', 76: 's', 77: 't', 78: 'u', 79: 'v', 80: 'w', 81: 'x', 82: 'y', 83: 'z', 84: '{', 85: '|', 86: '}', 87: 'à', 88: 'á', 89: 'è', 90: 'é', 91: 'ë', 92: 'ñ', 93: 'ó', 94: 'ú', 95: '\u2005', 96: '–', 97: '—', 98: '‘', 99: '’', 100: '“', 101: '”', 102: '…', 103: '\u205f'}
+    int_to_char = {i: chr(65+i) for i in range(vocab_size)}
     print(generate(model, new_chars, context, context_length, int_to_char))
