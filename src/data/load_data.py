@@ -53,5 +53,6 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_data, batch_size=2, shuffle=True)
     sample_batch = next(iter(train_loader))
 
+    print("Sample batch keys:", sample_batch.keys())
     print("Sample input_ids batch shape:", sample_batch["input_ids"].shape)
     print("Sample attention_mask batch shape:", sample_batch["attention_mask"].shape)
